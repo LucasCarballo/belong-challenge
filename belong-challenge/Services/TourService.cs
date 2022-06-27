@@ -45,7 +45,13 @@ namespace belong_challenge.Services
 
         internal void Cancel(int tourId)
         {
-            if (_tourRepository.Get(tourId) == null)
+            var tour = _tourRepository.Get(tourId);
+            if (tour == null)
+            {
+                throw new TourException("Tour unavailable to cancel");
+            }
+
+            if (tour.ScheduledAt <= DateTime.Now)
             {
                 throw new TourException("Tour unavailable to cancel");
             }
@@ -53,27 +59,23 @@ namespace belong_challenge.Services
             _tourRepository.Cancel(tourId);
         }
 
-        internal StatsDTO GetStats()
-        {
-            var booked = _tourRepository.GetBooked();
-            var cancelled = _tourRepository.GetCancelled();
-            var rescheduled = _tourRepository.GetRescheduled();
-
-            return new StatsDTO(booked.Count, cancelled.Count, rescheduled.Count);
-        }
-
         internal async Task<Tour> Reschedule(int tourId, DateTime tourTime)
         {
-            ValidateTourTime(tourTime);
+            var tour = _tourRepository.Get(tourId);
 
-            var tourToReschedule = _tourRepository.Get(tourId);
-
-            if (tourToReschedule == null)
+            if (tour == null)
             {
                 throw new TourException("Tour unavailable to reschedule");
             }
 
-            if (!IsSlotAvailable(tourToReschedule.HomeId, tourTime))
+            if (tour.ScheduledAt <= DateTime.Now)
+            {
+                throw new TourException("Tour unavailable to reschedule");
+            }
+
+            ValidateTourTime(tourTime);
+
+            if (!IsSlotAvailable(tour.HomeId, tourTime))
             {
                 throw new TourException("Tour slot is not available");
             }
@@ -86,6 +88,15 @@ namespace belong_challenge.Services
             }
 
             return await _tourRepository.Insert(new Tour(rescheduledTour.HomeId, tourTime, rescheduledTour.UserId));
+        }
+
+        internal StatsDTO GetStats()
+        {
+            var booked = _tourRepository.GetBooked();
+            var cancelled = _tourRepository.GetCancelled();
+            var rescheduled = _tourRepository.GetRescheduled();
+
+            return new StatsDTO(booked.Count, cancelled.Count, rescheduled.Count);
         }
 
         private void ValidateTourTime(DateTime tourTime)
